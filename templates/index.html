@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scalable CSV Geocoder</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 40px;
+            max-width: 580px;
+            width: 100%;
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.1),
+                0 2px 16px rgba(0, 0, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            z-index: 1;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+            border-radius: 24px;
+            pointer-events: none;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 12px;
+            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.1rem;
+            text-align: center;
+            margin-bottom: 40px;
+            font-weight: 400;
+            line-height: 1.6;
+        }
+
+        .upload-section {
+            position: relative;
+            z-index: 2;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .file-input-label {
+            display: block;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .file-input-label:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .file-input-label::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .file-input-label:hover::before {
+            left: 100%;
+        }
+
+        #file-input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .file-icon {
+            font-size: 3rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 16px;
+        }
+
+        .file-text {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .file-subtext {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+
+        .upload-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .upload-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .upload-button:hover::before {
+            opacity: 1;
+        }
+
+        .upload-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .upload-button:disabled {
+            background: rgba(255, 255, 255, 0.2);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .upload-button:disabled::before {
+            opacity: 0;
+        }
+
+        #status-area {
+            margin-top: 32px;
+            padding: 24px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: none;
+            position: relative;
+        }
+
+        #status-area h3 {
+            color: #ffffff;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        #status-message {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1rem;
+            text-align: center;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .success {
+            color: #4ade80 !important;
+            font-weight: 600;
+        }
+
+        .error {
+            color: #f87171 !important;
+            font-weight: 600;
+        }
+
+        #download-link {
+            display: none;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        #download-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 24px;
+            height: 24px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid #ffffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 24px;
+                margin: 20px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .subtitle {
+                font-size: 1rem;
+            }
+
+            .file-input-label {
+                padding: 32px 16px;
+            }
+
+            .file-icon {
+                font-size: 2.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .file-input-label {
+                padding: 24px 12px;
+            }
+
+            .upload-button {
+                padding: 14px 24px;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CSV Geocoder</h1>
+        <p class="subtitle">Processing will happen in the background. You can check the status below.</p>
+        
+        <div class="upload-section">
+            <form id="upload-form">
+                <div class="file-input-wrapper">
+                    <label for="file-input" class="file-input-label">
+                        <div class="file-icon">📁</div>
+                        <div class="file-text">Choose your CSV file</div>
+                        <div class="file-subtext">Click to browse or drag and drop</div>
+                        <input type="file" id="file-input" name="file" accept=".csv" required>
+                    </label>
+                </div>
+                <button type="submit" class="upload-button">Start Geocoding Task</button>
+            </form>
+        </div>
+
+        <div id="status-area">
+            <h3>Task Status</h3>
+            <div class="loading-spinner"></div>
+            <p id="status-message"></p>
+            <a id="download-link" href="#">Download Your File</a>
+        </div>
+    </div>
+
+    <script>
+        // Update file input label when file is selected
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const label = document.querySelector('.file-input-label');
+            const fileText = label.querySelector('.file-text');
+            const fileSubtext = label.querySelector('.file-subtext');
+            
+            if (e.target.files.length > 0) {
+                fileText.textContent = e.target.files[0].name;
+                fileSubtext.textContent = 'File selected';
+                label.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+                label.style.background = 'rgba(16, 185, 129, 0.1)';
+            } else {
+                fileText.textContent = 'Choose your CSV file';
+                fileSubtext.textContent = 'Click to browse or drag and drop';
+                label.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                label.style.background = 'rgba(255, 255, 255, 0.1)';
+            }
+        });
+
+        document.getElementById('upload-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const form = event.target;
+            const statusArea = document.getElementById('status-area');
+            const statusMessage = document.getElementById('status-message');
+            const downloadLink = document.getElementById('download-link');
+            const button = form.querySelector('button');
+            const spinner = document.querySelector('.loading-spinner');
+
+            button.disabled = true;
+            statusArea.style.display = 'block';
+            downloadLink.style.display = 'none';
+            spinner.style.display = 'block';
+            statusMessage.textContent = 'Uploading file and starting task...';
+            statusMessage.className = '';
+
+            const formData = new FormData(form);
+
+            const response = await fetch('/upload', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            if (response.ok) {
+                statusMessage.textContent = 'Task started! Checking for completion every 10 seconds...';
+                statusMessage.classList.add('pulse');
+                // Start polling for the result
+                pollStatus(data.status_url, downloadLink, statusMessage, spinner);
+            } else {
+                statusMessage.textContent = 'Error: ' + data.error;
+                statusMessage.className = 'error';
+                statusMessage.classList.remove('pulse');
+                spinner.style.display = 'none';
+                button.disabled = false;
+            }
+        });
+
+        function pollStatus(statusUrl, downloadLink, statusMessage, spinner) {
+            const interval = setInterval(async () => {
+                const response = await fetch(statusUrl);
+                const data = await response.json();
+
+                if (data.status === 'SUCCESS') {
+                    clearInterval(interval);
+                    statusMessage.textContent = 'Processing complete!';
+                    statusMessage.className = 'success';
+                    statusMessage.classList.remove('pulse');
+                    spinner.style.display = 'none';
+                    downloadLink.href = data.result_url;
+                    downloadLink.style.display = 'block';
+                    document.getElementById('upload-form').querySelector('button').disabled = false;
+                } else {
+                    // Keep polling
+                    statusMessage.textContent = 'Task is still processing in the background...';
+                    statusMessage.classList.add('pulse');
+                }
+            }, 10000); // Poll every 10 seconds
+        }
+    </script>
+</body>
+</html>
