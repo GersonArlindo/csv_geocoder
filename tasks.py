@@ -227,10 +227,9 @@ def geocode_csv_task(input_path, output_path):
         
         if 'FULL_ADDRESS' not in df.columns:
             available_cols = ', '.join(df.columns)
-            error_msg = f"ERROR: FULL_ADDRESS column not found in CSV. Your file must contain a 'FULL_ADDRESS' column. Available columns: {available_cols}"
-            print(error_msg)
-            raise ValueError(error_msg)  # Esto será capturado por Celery
-        
+            # Este error será capturado por Celery y hará que el estado de la tarea sea 'FAILURE'.
+            raise ValueError(f"Required column 'FULL_ADDRESS' not found. Available columns are: {available_cols}")
+
         # === PASO 2: Preparar datos ===
         print(f"\n📋 STEP 2: Preparing data...")
         addresses = df['FULL_ADDRESS'].fillna('').astype(str).tolist()
