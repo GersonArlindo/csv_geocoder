@@ -55,18 +55,39 @@ def upload_file():
 
 @app.route('/status/<task_id>')
 def task_status(task_id):
-    # This is a simplified status check. It just checks if the output file exists.
-    # A more robust solution would use Celery's result backend to check the actual task state.
-    filename = None
-    for f in os.listdir(app.config['PROCESSED_FOLDER']):
-        if f.startswith(f"geocoded_{task_id}"):
-            filename = f
-            break
-            
-    if filename:
-        return jsonify({'status': 'SUCCESS', 'result_url': url_for('download_file', filename=filename)})
+    # Obtiene el resultado de la tarea asíncrona desde el backend de Celery
+    task = geocode_csv_task.AsyncResult(task_id)
+
+    if task.state == 'PENDING':
+        # La tarea aún no ha sido recogida por un worker o está en proceso
+        response = {
+            'status': 'PENDING',
+            'message': 'Task is waiting in the queue or currently processing.'
+        }
+    elif task.state == 'SUCCESS':
+        # La tarea se completó con éxito
+        filename = os.path.basename(task.result) # El resultado de la tarea es la ruta del archivo
+        response = {
+            'status': 'SUCCESS',
+            'result_url': url_for('download_file', filename=filename),
+            'message': 'Task completed successfully!'
+        }
+    elif task.state == 'FAILURE':
+        # La tarea falló
+        # task.info contiene la excepción y el traceback
+        error_message = str(task.info) # Convertimos la excepción a texto
+        response = {
+            'status': 'FAILURE',
+            'message': f"Task failed: {error_message}"
+        }
     else:
-        return jsonify({'status': 'PENDING'})
+        # Otro estado (como 'STARTED', 'RETRY')
+        response = {
+            'status': 'PROGRESS',
+            'message': f'Task is in progress with state: {task.state}'
+        }
+        
+    return jsonify(response)
 
 @app.route('/download/<filename>')
 def download_file(filename):

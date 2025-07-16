@@ -397,9 +397,7 @@
 
         function renderTasks() {
             const tasks = getTasks();
-            const tasksListContainer = document.getElementById('status-area'); // Usamos el contenedor principal
-
-            // Limpiamos el contenido anterior, excepto el título
+            const tasksListContainer = document.getElementById('status-area');
             tasksListContainer.innerHTML = '<h3>Task Status</h3>';
 
             if (Object.keys(tasks).length === 0) {
@@ -413,23 +411,26 @@
                 const task = tasks[taskId];
                 const taskElement = document.createElement('div');
 
-                let statusHTML, downloadHTML = '';
+                let statusHTML = '', downloadHTML = '';
 
                 if (task.status === 'SUCCESS') {
                     statusHTML = `<p>Status: <span class="success">Complete!</span></p>`;
                     downloadHTML = `<a href="${task.result_url}" download>Download File</a>`;
-                } else {
+                } else if (task.status === 'FAILURE') {
+                    // ¡NUEVA LÓGICA!
+                    statusHTML = `<p>Status: <span class="error">Failed!</span></p>
+                          <p style="color: #f87171; font-size: 0.9em;">Reason: ${task.error_message}</p>`;
+                } else { // PENDING
                     statusHTML = `<p>Status: <span class="pulse">Processing...</span></p>`;
-                    // Si la tarea está pendiente, empezamos a comprobar su estado
                     pollStatus(taskId);
                 }
 
                 taskElement.innerHTML = `
-                    <hr style="border-color: rgba(255,255,255,0.1); margin: 15px 0;">
-                    <p><strong>File:</strong> ${task.filename}</p>
-                    ${statusHTML}
-                    ${downloadHTML}
-                `;
+            <hr style="border-color: rgba(255,255,255,0.1); margin: 15px 0;">
+            <p><strong>File:</strong> ${task.filename}</p>
+            ${statusHTML}
+            ${downloadHTML}
+        `;
                 tasksListContainer.appendChild(taskElement);
             }
         }
@@ -481,7 +482,7 @@
                         status: 'PENDING',
                         status_url: data.status_url,
                         result_url: null,
-                        createdAt: Date.now() 
+                        createdAt: Date.now()
                     };
                     saveTasks(tasks);
                     renderTasks(); // Redibujar la lista para mostrar la nueva tarea y empezar a sondear
@@ -505,33 +506,34 @@
         function pollStatus(taskId) {
             const tasks = getTasks();
             const task = tasks[taskId];
-            if (!task || task.intervalId) return; // Evita iniciar múltiples pollers para la misma tarea
+            if (!task || task.intervalId) return;
 
             const interval = setInterval(async () => {
                 try {
                     const response = await fetch(task.status_url);
                     const data = await response.json();
 
-                    if (data.status === 'SUCCESS') {
+                    // Detener el sondeo si la tarea está terminada (éxito o fallo)
+                    if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                         clearInterval(interval);
+
                         // Actualizar la tarea en localStorage
-                        task.status = 'SUCCESS';
-                        task.result_url = data.result_url;
-                        delete task.intervalId; // Limpiar el ID del intervalo
+                        task.status = data.status; // Será 'SUCCESS' o 'FAILURE'
+                        task.result_url = data.result_url || null;
+                        task.error_message = data.message || null;
+                        delete task.intervalId;
                         saveTasks(tasks);
-                        renderTasks(); // Volver a dibujar toda la lista
+                        renderTasks(); // Volver a dibujar la lista con el estado final
                     }
-                    // Si sigue en PENDING, no hacemos nada, solo esperamos al siguiente ciclo.
+                    // Si es PENDING o PROGRESS, no hacemos nada y seguimos esperando.
                 } catch (error) {
                     console.error('Polling error:', error);
-                    clearInterval(interval); // Detener en caso de error de red
+                    clearInterval(interval);
                 }
-            }, 15000); // Comprobar cada 15 segundos
+            }, 10000); // Comprobar cada 10 segundos
 
-            // Guardar el ID del intervalo para no crear duplicados
             task.intervalId = interval;
         }
-
 
         document.addEventListener('DOMContentLoaded', renderTasks);
 
