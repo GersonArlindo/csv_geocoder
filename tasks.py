@@ -196,13 +196,14 @@ def geocode_batch(addresses_batch, batch_index):
     return results
 
 # --- Main Celery Task ---
-@celery_app.task
-def geocode_csv_task(input_path, output_path):
+@celery_app.task(bind=True)
+def geocode_csv_task(self,input_path, output_path):
+
     """
     Celery task optimizado para geocodificación masiva de CSV
     Prioriza Nominatim (gratis) con Google Maps como fallback
     """
-    task_id = geocode_csv_task.request.id
+    task_id = self.request.id
     print(f"=== TASK {task_id} STARTED ===")
     print(f"Input: {input_path}")
     print(f"Output: {output_path}")
@@ -366,4 +367,4 @@ def geocode_csv_task(input_path, output_path):
         except:
             pass
             
-        raise e
+        #raise e
