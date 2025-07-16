@@ -196,14 +196,13 @@ def geocode_batch(addresses_batch, batch_index):
     return results
 
 # --- Main Celery Task ---
-@celery_app.task(bind=True)
-def geocode_csv_task(self,input_path, output_path):
-
+@celery_app.task
+def geocode_csv_task(input_path, output_path):
     """
     Celery task optimizado para geocodificación masiva de CSV
     Prioriza Nominatim (gratis) con Google Maps como fallback
     """
-    task_id = self.request.id
+    task_id = geocode_csv_task.request.id
     print(f"=== TASK {task_id} STARTED ===")
     print(f"Input: {input_path}")
     print(f"Output: {output_path}")
@@ -353,17 +352,18 @@ def geocode_csv_task(self,input_path, output_path):
         print(f"   Success rate: {success_count/total_rows*100:.1f}%")
         print(f"   Cost efficiency: {nominatim_count/success_count*100:.1f}% free geocoding")
         
+        return output_path
+        
     except Exception as e:
-            # Este bloque ahora SÍ funcionará correctamente.
-            print(f"\n💥 FATAL ERROR in task {task_id}: {e}")
-            # Celery necesita que la excepción se vuelva a lanzar para marcar el estado como FAILURE
-            raise e
-    finally:
-        # Limpieza final: Asegurarse de que el archivo de entrada se borre sin importar si la tarea tuvo éxito o falló.
-        print(f"\n🧹 STEP FINAL: Cleanup...")
-        if os.path.exists(input_path):
-            try:
+        print(f"\n💥 FATAL ERROR in task {task_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Intentar limpiar archivo de entrada en caso de error
+        try:
+            if os.path.exists(input_path):
                 os.remove(input_path)
-                print(f"   ✓ Removed input file: {input_path}")
-            except OSError as e:
-                print(f"   ✗ Error removing input file: {e}")
+        except:
+            pass
+            
+        #raise e
