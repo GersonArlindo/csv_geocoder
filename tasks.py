@@ -353,18 +353,17 @@ def geocode_csv_task(self,input_path, output_path):
         print(f"   Success rate: {success_count/total_rows*100:.1f}%")
         print(f"   Cost efficiency: {nominatim_count/success_count*100:.1f}% free geocoding")
         
-        return output_path
-        
     except Exception as e:
-        print(f"\n💥 FATAL ERROR in task {task_id}: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Intentar limpiar archivo de entrada en caso de error
-        try:
-            if os.path.exists(input_path):
+            # Este bloque ahora SÍ funcionará correctamente.
+            print(f"\n💥 FATAL ERROR in task {task_id}: {e}")
+            # Celery necesita que la excepción se vuelva a lanzar para marcar el estado como FAILURE
+            raise e
+    finally:
+        # Limpieza final: Asegurarse de que el archivo de entrada se borre sin importar si la tarea tuvo éxito o falló.
+        print(f"\n🧹 STEP FINAL: Cleanup...")
+        if os.path.exists(input_path):
+            try:
                 os.remove(input_path)
-        except:
-            pass
-            
-        #raise e
+                print(f"   ✓ Removed input file: {input_path}")
+            except OSError as e:
+                print(f"   ✗ Error removing input file: {e}")
