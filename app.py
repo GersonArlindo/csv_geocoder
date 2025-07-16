@@ -31,39 +31,11 @@ def upload_file():
     if not file or not file.filename.endswith('.csv'):
         return jsonify({'error': 'Invalid file type. Please upload a .csv file.'}), 400
     
-    # # --- Validación Rápida de Encabezado ---
-    # # Guardamos el archivo temporalmente para inspeccionarlo
-    # temp_id = str(uuid.uuid4())
-    # temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{temp_id}.csv")
-    # file.save(temp_path)
-
-    # try:
-    #     # Leemos solo el encabezado para verificar la columna
-    #     # Intentamos con ambos delimitadores
-    #     try:
-    #         headers = pd.read_csv(temp_path, sep=';', nrows=0).columns.tolist()
-    #     except Exception:
-    #         headers = pd.read_csv(temp_path, sep=',', nrows=0).columns.tolist()
-
-    #     if 'FULL_ADDRESS' not in headers:
-    #         # Si la columna no existe, devolvemos un error INMEDIATO
-    #         os.remove(temp_path) # Borramos el archivo temporal
-    #         available_cols = ', '.join(headers)
-    #         error_msg = f"Required column 'FULL_ADDRESS' not found. Available columns: {available_cols}"
-    #         return jsonify({'error': error_msg}), 400 # Código 400 indica un error del cliente
-
-    # except Exception as e:
-    #     # Si hay algún error leyendo el encabezado, también es un error
-    #     os.remove(temp_path)
-    #     return jsonify({'error': f'Could not read CSV headers. Please check file format. Error: {e}'}), 400
-    
-
-
     if file and file.filename.endswith('.csv'):
         # Create secure and unique filenames to avoid conflicts
         original_filename = secure_filename(file.filename)
-        task_id = str(uuid.uuid4())
-        input_filename = f"{task_id}_{original_filename}"
+        unique_id = str(uuid.uuid4())  # Solo para nombres de archivo únicos
+        input_filename = f"{unique_id}_{original_filename}"
         output_filename = f"geocoded_{input_filename}"
         
         input_path = os.path.join(app.config['UPLOAD_FOLDER'], input_filename)
@@ -72,14 +44,15 @@ def upload_file():
         file.save(input_path)
 
         # --- Launch the background task ---
-        # We call .delay() to run it in the background with Celery
-        geocode_csv_task.delay(input_path, output_path)
+        # ✅ CORRECCIÓN: Guardar el resultado y usar el task_id real de Celery
+        task_result = geocode_csv_task.delay(input_path, output_path)
+        celery_task_id = task_result.id  # Este es el task_id real que Celery puede rastrear
         
         # --- Respond to the user IMMEDIATELY ---
         return jsonify({
             'message': 'File uploaded successfully! Processing has started in the background.',
-            'task_id': task_id,
-            'status_url': url_for('task_status', task_id=task_id),
+            'task_id': celery_task_id,  # ✅ USAR EL TASK_ID REAL DE CELERY
+            'status_url': url_for('task_status', task_id=celery_task_id),
             'result_url': url_for('download_file', filename=output_filename)
         })
     
@@ -87,8 +60,14 @@ def upload_file():
 
 @app.route('/status/<task_id>')
 def task_status(task_id):
+    # ✅ MEJORAR: Agregar más logging para debugging
+    print(f"Checking status for task_id: {task_id}")
+    
     # Obtiene el resultado de la tarea asíncrona desde el backend de Celery
     task = geocode_csv_task.AsyncResult(task_id)
+    
+    print(f"Task state: {task.state}")
+    print(f"Task info: {task.info}")
 
     if task.state == 'PENDING':
         # La tarea aún no ha sido recogida por un worker o está en proceso
@@ -118,7 +97,8 @@ def task_status(task_id):
             'status': 'PROGRESS',
             'message': f'Task is in progress with state: {task.state}'
         }
-        
+    
+    print(f"Response: {response}")
     return jsonify(response)
 
 @app.route('/download/<filename>')
@@ -129,4 +109,4 @@ if __name__ == '__main__':
     # Set the Google API Key as an environment variable before running
     # On Windows (cmd): set GOOGLE_API_KEY=TU_CLAVE_REAL
     # On macOS/Linux: export GOOGLE_API_KEY=TU_CLAVE_REAL
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)  # ✅ Agregar debug=True para más info

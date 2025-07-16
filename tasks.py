@@ -366,4 +366,5 @@ def geocode_csv_task(input_path, output_path):
         except:
             pass
             
-        #raise e
+        # ✅ CORRECCIÓN CRÍTICA: Descomentar esta línea para que Celery sepa que la tarea falló
+        raise e
