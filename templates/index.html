@@ -410,6 +410,7 @@
             for (const taskId in tasks) {
                 const task = tasks[taskId];
                 const taskElement = document.createElement('div');
+                taskElement.className = 'task-item';
 
                 let statusHTML = '', downloadHTML = '';
 
@@ -417,9 +418,18 @@
                     statusHTML = `<p>Status: <span class="success">Complete!</span></p>`;
                     downloadHTML = `<a href="${task.result_url}" download>Download File</a>`;
                 } else if (task.status === 'FAILURE') {
-                    // ¡NUEVA LÓGICA!
-                    statusHTML = `<p>Status: <span class="error">Failed!</span></p>
-                          <p style="color: #f87171; font-size: 0.9em;">Reason: ${task.error_message}</p>`;
+                    // Mejor formato para mensajes de error
+                    let errorMsg = task.error_message || 'Unknown error occurred';
+                    // Extraer solo la parte importante del mensaje de error
+                    if (errorMsg.includes("FULL_ADDRESS column not found")) {
+                        errorMsg = errorMsg.split("Available columns:")[0];
+                    }
+                    statusHTML = `
+                <p>Status: <span class="error">Failed!</span></p>
+                <div class="error-message">
+                    <p><strong>Error:</strong> ${errorMsg}</p>
+                </div>
+            `;
                 } else { // PENDING
                     statusHTML = `<p>Status: <span class="pulse">Processing...</span></p>`;
                     pollStatus(taskId);
