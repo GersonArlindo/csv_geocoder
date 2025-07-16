@@ -184,7 +184,7 @@ def geocode_batch(addresses_batch, batch_index):
         
         # Rate limiting solo para Nominatim (para ser respetuosos con el servicio gratuito)
         if result[2] == "Nominatim":
-            time.sleep(1.2)  # 1.2 segundos entre requests de Nominatim
+            time.sleep(1)  # 1 segundos entre requests de Nominatim
         elif result[2] == "Google":
             time.sleep(0.1)  # Mínimo delay para Google (es de pago)
             
