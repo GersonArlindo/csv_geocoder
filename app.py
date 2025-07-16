@@ -31,31 +31,31 @@ def upload_file():
     if not file or not file.filename.endswith('.csv'):
         return jsonify({'error': 'Invalid file type. Please upload a .csv file.'}), 400
     
-    # --- Validación Rápida de Encabezado ---
-    # Guardamos el archivo temporalmente para inspeccionarlo
-    temp_id = str(uuid.uuid4())
-    temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{temp_id}.csv")
-    file.save(temp_path)
+    # # --- Validación Rápida de Encabezado ---
+    # # Guardamos el archivo temporalmente para inspeccionarlo
+    # temp_id = str(uuid.uuid4())
+    # temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{temp_id}.csv")
+    # file.save(temp_path)
 
-    try:
-        # Leemos solo el encabezado para verificar la columna
-        # Intentamos con ambos delimitadores
-        try:
-            headers = pd.read_csv(temp_path, sep=';', nrows=0).columns.tolist()
-        except Exception:
-            headers = pd.read_csv(temp_path, sep=',', nrows=0).columns.tolist()
+    # try:
+    #     # Leemos solo el encabezado para verificar la columna
+    #     # Intentamos con ambos delimitadores
+    #     try:
+    #         headers = pd.read_csv(temp_path, sep=';', nrows=0).columns.tolist()
+    #     except Exception:
+    #         headers = pd.read_csv(temp_path, sep=',', nrows=0).columns.tolist()
 
-        if 'FULL_ADDRESS' not in headers:
-            # Si la columna no existe, devolvemos un error INMEDIATO
-            os.remove(temp_path) # Borramos el archivo temporal
-            available_cols = ', '.join(headers)
-            error_msg = f"Required column 'FULL_ADDRESS' not found. Available columns: {available_cols}"
-            return jsonify({'error': error_msg}), 400 # Código 400 indica un error del cliente
+    #     if 'FULL_ADDRESS' not in headers:
+    #         # Si la columna no existe, devolvemos un error INMEDIATO
+    #         os.remove(temp_path) # Borramos el archivo temporal
+    #         available_cols = ', '.join(headers)
+    #         error_msg = f"Required column 'FULL_ADDRESS' not found. Available columns: {available_cols}"
+    #         return jsonify({'error': error_msg}), 400 # Código 400 indica un error del cliente
 
-    except Exception as e:
-        # Si hay algún error leyendo el encabezado, también es un error
-        os.remove(temp_path)
-        return jsonify({'error': f'Could not read CSV headers. Please check file format. Error: {e}'}), 400
+    # except Exception as e:
+    #     # Si hay algún error leyendo el encabezado, también es un error
+    #     os.remove(temp_path)
+    #     return jsonify({'error': f'Could not read CSV headers. Please check file format. Error: {e}'}), 400
     
 
 
@@ -83,7 +83,7 @@ def upload_file():
             'result_url': url_for('download_file', filename=output_filename)
         })
     
-    return jsonify({'errors': 'Invalid file type'}), 400
+    return jsonify({'error': 'Invalid file type'}), 400
 
 @app.route('/status/<task_id>')
 def task_status(task_id):
