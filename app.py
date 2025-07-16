@@ -83,7 +83,7 @@ def upload_file():
             'result_url': url_for('download_file', filename=output_filename)
         })
     
-    return jsonify({'error': 'Invalid file type'}), 400
+    return jsonify({'errors': 'Invalid file type'}), 400
 
 @app.route('/status/<task_id>')
 def task_status(task_id):

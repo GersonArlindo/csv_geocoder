@@ -176,7 +176,7 @@ def geocode_batch(addresses_batch, batch_index):
     results = []
     batch_size = len(addresses_batch)
     
-    print(f"Processing batch {batch_index} with {batch_size} addresses...")
+    print(f"Processing batchs {batch_index} with {batch_size} addresses...")
     
     for i, address in enumerate(addresses_batch):
         result = geocode_single_address(address)
