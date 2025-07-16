@@ -3,6 +3,7 @@ from flask import Flask, request, render_template, jsonify, url_for, send_from_d
 from werkzeug.utils import secure_filename
 import uuid
 from tasks import geocode_csv_task # <--- IMPORT OUR CELERY TASK
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -26,6 +27,37 @@ def upload_file():
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
+    
+    if not file or not file.filename.endswith('.csv'):
+        return jsonify({'error': 'Invalid file type. Please upload a .csv file.'}), 400
+    
+    # --- Validación Rápida de Encabezado ---
+    # Guardamos el archivo temporalmente para inspeccionarlo
+    temp_id = str(uuid.uuid4())
+    temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{temp_id}.csv")
+    file.save(temp_path)
+
+    try:
+        # Leemos solo el encabezado para verificar la columna
+        # Intentamos con ambos delimitadores
+        try:
+            headers = pd.read_csv(temp_path, sep=';', nrows=0).columns.tolist()
+        except Exception:
+            headers = pd.read_csv(temp_path, sep=',', nrows=0).columns.tolist()
+
+        if 'FULL_ADDRESS' not in headers:
+            # Si la columna no existe, devolvemos un error INMEDIATO
+            os.remove(temp_path) # Borramos el archivo temporal
+            available_cols = ', '.join(headers)
+            error_msg = f"Required column 'FULL_ADDRESS' not found. Available columns: {available_cols}"
+            return jsonify({'error': error_msg}), 400 # Código 400 indica un error del cliente
+
+    except Exception as e:
+        # Si hay algún error leyendo el encabezado, también es un error
+        os.remove(temp_path)
+        return jsonify({'error': f'Could not read CSV headers. Please check file format. Error: {e}'}), 400
+    
+
 
     if file and file.filename.endswith('.csv'):
         # Create secure and unique filenames to avoid conflicts
