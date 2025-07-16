@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Scalable CSV Geocoder</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
+
         * {
             margin: 0;
             padding: 0;
@@ -31,7 +32,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: 
+            background:
                 radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
                 radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
             pointer-events: none;
@@ -45,7 +46,7 @@
             padding: 40px;
             max-width: 580px;
             width: 100%;
-            box-shadow: 
+            box-shadow:
                 0 8px 32px rgba(0, 0, 0, 0.1),
                 0 2px 16px rgba(0, 0, 0, 0.05),
                 inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -267,8 +268,13 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         .pulse {
@@ -276,8 +282,15 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         @media (max-width: 640px) {
@@ -323,11 +336,12 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>CSV Geocoder</h1>
         <p class="subtitle">Processing will happen in the background. You can check the status below.</p>
-        
+
         <div class="upload-section">
             <form id="upload-form">
                 <div class="file-input-wrapper">
@@ -351,12 +365,81 @@
     </div>
 
     <script>
+        // Function to get tasks from localStorage
+        function getTasks() {
+            let tasks = JSON.parse(localStorage.getItem('geocodingTasks')) || {};
+            const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+            let cleanedTasks = {};
+            let needsSave = false;
+
+            for (const taskId in tasks) {
+                // Si la tarea tiene una fecha de creación y es más nueva de 7 días, la conservamos.
+                if (tasks[taskId].createdAt && tasks[taskId].createdAt > sevenDaysAgo) {
+                    cleanedTasks[taskId] = tasks[taskId];
+                } else {
+                    // Marcamos que necesitamos volver a guardar la lista limpia.
+                    needsSave = true;
+                }
+            }
+
+            // Si encontramos tareas antiguas, actualizamos el localStorage.
+            if (needsSave) {
+                saveTasks(cleanedTasks);
+            }
+
+            return cleanedTasks;
+        }
+
+        // Function to save tasks to localStorage
+        function saveTasks(tasks) {
+            localStorage.setItem('geocodingTasks', JSON.stringify(tasks));
+        }
+
+        function renderTasks() {
+            const tasks = getTasks();
+            const tasksListContainer = document.getElementById('status-area'); // Usamos el contenedor principal
+
+            // Limpiamos el contenido anterior, excepto el título
+            tasksListContainer.innerHTML = '<h3>Task Status</h3>';
+
+            if (Object.keys(tasks).length === 0) {
+                tasksListContainer.style.display = 'none';
+                return;
+            }
+
+            tasksListContainer.style.display = 'block';
+
+            for (const taskId in tasks) {
+                const task = tasks[taskId];
+                const taskElement = document.createElement('div');
+
+                let statusHTML, downloadHTML = '';
+
+                if (task.status === 'SUCCESS') {
+                    statusHTML = `<p>Status: <span class="success">Complete!</span></p>`;
+                    downloadHTML = `<a href="${task.result_url}" download>Download File</a>`;
+                } else {
+                    statusHTML = `<p>Status: <span class="pulse">Processing...</span></p>`;
+                    // Si la tarea está pendiente, empezamos a comprobar su estado
+                    pollStatus(taskId);
+                }
+
+                taskElement.innerHTML = `
+                    <hr style="border-color: rgba(255,255,255,0.1); margin: 15px 0;">
+                    <p><strong>File:</strong> ${task.filename}</p>
+                    ${statusHTML}
+                    ${downloadHTML}
+                `;
+                tasksListContainer.appendChild(taskElement);
+            }
+        }
+
         // Update file input label when file is selected
-        document.getElementById('file-input').addEventListener('change', function(e) {
+        document.getElementById('file-input').addEventListener('change', function (e) {
             const label = document.querySelector('.file-input-label');
             const fileText = label.querySelector('.file-text');
             const fileSubtext = label.querySelector('.file-subtext');
-            
+
             if (e.target.files.length > 0) {
                 fileText.textContent = e.target.files[0].name;
                 fileSubtext.textContent = 'File selected';
@@ -370,62 +453,89 @@
             }
         });
 
-        document.getElementById('upload-form').addEventListener('submit', async function(event) {
+        document.getElementById('upload-form').addEventListener('submit', async function (event) {
             event.preventDefault();
             const form = event.target;
-            const statusArea = document.getElementById('status-area');
-            const statusMessage = document.getElementById('status-message');
-            const downloadLink = document.getElementById('download-link');
             const button = form.querySelector('button');
-            const spinner = document.querySelector('.loading-spinner');
+            const fileInput = document.getElementById('file-input');
+
+            if (fileInput.files.length === 0) {
+                alert('Please select a file first.');
+                return;
+            }
 
             button.disabled = true;
-            statusArea.style.display = 'block';
-            downloadLink.style.display = 'none';
-            spinner.style.display = 'block';
-            statusMessage.textContent = 'Uploading file and starting task...';
-            statusMessage.className = '';
+            button.textContent = 'Uploading...';
 
             const formData = new FormData(form);
 
-            const response = await fetch('/upload', { method: 'POST', body: formData });
-            const data = await response.json();
+            try {
+                const response = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await response.json();
 
-            if (response.ok) {
-                statusMessage.textContent = 'Task started! Checking for completion every 10 seconds...';
-                statusMessage.classList.add('pulse');
-                // Start polling for the result
-                pollStatus(data.status_url, downloadLink, statusMessage, spinner);
-            } else {
-                statusMessage.textContent = 'Error: ' + data.error;
-                statusMessage.className = 'error';
-                statusMessage.classList.remove('pulse');
-                spinner.style.display = 'none';
+                if (response.ok) {
+                    const tasks = getTasks();
+                    // Añadir la nueva tarea a nuestro almacenamiento local
+                    tasks[data.task_id] = {
+                        filename: fileInput.files[0].name,
+                        status: 'PENDING',
+                        status_url: data.status_url,
+                        result_url: null,
+                        createdAt: Date.now() 
+                    };
+                    saveTasks(tasks);
+                    renderTasks(); // Redibujar la lista para mostrar la nueva tarea y empezar a sondear
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('A network error occurred.');
+            } finally {
                 button.disabled = false;
+                button.textContent = 'Start Geocoding Task';
+                form.reset();
+                // Restablecer el estilo del label del input
+                document.querySelector('.file-text').textContent = 'Choose your CSV file';
+                document.querySelector('.file-subtext').textContent = 'Click to browse or drag and drop';
+                document.querySelector('.file-input-label').style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                document.querySelector('.file-input-label').style.background = 'rgba(255, 255, 255, 0.1)';
             }
         });
 
-        function pollStatus(statusUrl, downloadLink, statusMessage, spinner) {
-            const interval = setInterval(async () => {
-                const response = await fetch(statusUrl);
-                const data = await response.json();
+        function pollStatus(taskId) {
+            const tasks = getTasks();
+            const task = tasks[taskId];
+            if (!task || task.intervalId) return; // Evita iniciar múltiples pollers para la misma tarea
 
-                if (data.status === 'SUCCESS') {
-                    clearInterval(interval);
-                    statusMessage.textContent = 'Processing complete!';
-                    statusMessage.className = 'success';
-                    statusMessage.classList.remove('pulse');
-                    spinner.style.display = 'none';
-                    downloadLink.href = data.result_url;
-                    downloadLink.style.display = 'block';
-                    document.getElementById('upload-form').querySelector('button').disabled = false;
-                } else {
-                    // Keep polling
-                    statusMessage.textContent = 'Task is still processing in the background...';
-                    statusMessage.classList.add('pulse');
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(task.status_url);
+                    const data = await response.json();
+
+                    if (data.status === 'SUCCESS') {
+                        clearInterval(interval);
+                        // Actualizar la tarea en localStorage
+                        task.status = 'SUCCESS';
+                        task.result_url = data.result_url;
+                        delete task.intervalId; // Limpiar el ID del intervalo
+                        saveTasks(tasks);
+                        renderTasks(); // Volver a dibujar toda la lista
+                    }
+                    // Si sigue en PENDING, no hacemos nada, solo esperamos al siguiente ciclo.
+                } catch (error) {
+                    console.error('Polling error:', error);
+                    clearInterval(interval); // Detener en caso de error de red
                 }
-            }, 10000); // Poll every 10 seconds
+            }, 15000); // Comprobar cada 15 segundos
+
+            // Guardar el ID del intervalo para no crear duplicados
+            task.intervalId = interval;
         }
+
+
+        document.addEventListener('DOMContentLoaded', renderTasks);
+
     </script>
 </body>
+
 </html>
